@@ -1,0 +1,72 @@
+SharedRedisCache evidence
+redis_url = redis://localhost:6379/0   prefix = rl:cache:
+connectivity: ping() = True
+
+==============================================================================
+1. Shared state across two independent SharedRedisCache instances
+==============================================================================
+instance A id=2197240595536  ->  set('Explain circuit breaker states in one paragraph.')
+instance B id=2197286121552  ->  get(...) = ('[primary] circuit breaker answer', 1.0)
+
+RESULT: shared state CONFIRMED
+Two objects, two connections, one Redis keyspace: B reads what A wrote.
+
+semantic lookup from B: get('Explain the circuit breaker states in a paragraph.')
+  -> (None, score=0.8208)
+
+==============================================================================
+2. Raw Redis keyspace (docker compose exec redis redis-cli)
+==============================================================================
+
+$ redis-cli --scan --pattern "rl:cache:*"
+rl:cache:095946136fea
+rl:cache:9e413fd814eb
+rl:cache:8baa2cfa11fa
+
+$ redis-cli DBSIZE
+3
+
+$ python: HGETALL of every rl:cache:* key
+  rl:cache:095946136fea  ttl=299s
+      query    = 'Explain circuit breaker states in one paragraph.'
+      response = '[backup] cb answer'
+  rl:cache:8baa2cfa11fa  ttl=299s
+      query    = 'Summarize the admission FAQ in 5 bullets.'
+      response = '[primary] faq answer'
+  rl:cache:9e413fd814eb  ttl=299s
+      query    = 'What should I do when API calls return 429?'
+      response = '[primary] 429 answer'
+
+==============================================================================
+3. Privacy guardrail: sensitive queries never reach Redis
+==============================================================================
+  set+get 'Give me the current account balance for user 123.'
+      -> (None, 0.0)
+  set+get 'How do I reset the password for user 456?'
+      -> (None, 0.0)
+  set+get 'Show the credit card on file for account 7890.'
+      -> (None, 0.0)
+
+keys in Redis after storing 3 sensitive queries: 0
+RESULT: PASS - nothing sensitive was persisted.
+
+==============================================================================
+4. False-hit guardrail across instances (2024 vs 2026)
+==============================================================================
+  A cached the 2024 variant; B asks the 2026 variant
+  similarity score = 0.9459  (threshold = 0.92)
+  served           = None
+  false_hit_log    = [{'query': 'Summarize the refund policy for the 2026 deadline.', 'cached_key': 'Summarize the refund policy for the 2024 deadline.', 'score': 0.9459, 'reason': 'date_or_number_mismatch'}]
+
+RESULT: the score clears the similarity threshold, so the threshold alone would have served a stale answer;
+        the 4-digit guardrail is what blocks it.
+
+==============================================================================
+5. Graceful degradation when Redis is unreachable
+==============================================================================
+  ping() against a dead port -> False
+  set/get still work        -> ('degraded answer', 1.0)
+  degraded flag             -> True after 2 events
+
+RESULT: a Redis outage costs cache locality, not availability - reads and
+        writes silently fall through to the process-local ResponseCache.

@@ -23,7 +23,23 @@ markers = ["todo: tests that should pass after students implement TODOs"]
 line-length = 100
 src = ["src", "tests", "scripts"]
 
+[tool.ruff.lint]
+# Pinned explicitly so `make lint` gives the same result on any ruff version.
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM", "BLE", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Starter-provided test fixtures are kept byte-identical to the handout, so their
+# lint findings are acknowledged rather than "fixed" by editing the assignment.
+"tests/test_todo_requirements.py" = ["E401", "F401", "I001", "SIM115"]
+"tests/test_cache.py" = ["RUF059"]
+"tests/test_redis_cache.py" = ["BLE001"]
+
 [tool.mypy]
 python_version = "3.10"
 strict = true
 mypy_path = "src"
+
+[[tool.mypy.overrides]]
+# PyYAML ships no type stubs; types-PyYAML is not worth a hard dev dependency here.
+module = ["yaml"]
+ignore_missing_imports = true

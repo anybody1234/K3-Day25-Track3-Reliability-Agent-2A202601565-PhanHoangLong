@@ -30,12 +30,30 @@ class CacheConfig(BaseModel):
 
 class LoadTestConfig(BaseModel):
     requests: int = Field(gt=0)
+    #: Number of worker threads. 1 keeps the run sequential and reproducible;
+    #: values > 1 exercise the shared circuit breaker under concurrent load.
+    concurrency: int = Field(default=1, gt=0)
+    #: Seed for query selection and for the provider failure/latency RNG, so a
+    #: sequential run is byte-for-byte reproducible.
+    seed: int = 1234
 
 
 class ScenarioConfig(BaseModel):
     name: str
     description: str = ""
     provider_overrides: dict[str, float] = Field(default_factory=dict)
+    #: Per-scenario override of ``cache.enabled``; None inherits the global setting.
+    #: Used by the cache vs no-cache comparison scenario.
+    cache_enabled: bool | None = None
+    #: Per-scenario override of ``load_test.concurrency``; None inherits the global value.
+    concurrency: int | None = Field(default=None, gt=0)
+    #: Optional spend cap handed to the gateway for cost-aware routing.
+    cost_budget: float | None = Field(default=None, gt=0)
+    #: Bounded retry on the last provider in the chain. 0 (default) reproduces the
+    #: no-retry behaviour specified for the lab.
+    max_retries_per_request: int = Field(default=0, ge=0)
+    #: Share of total traffic that may be spent on retries before they are refused.
+    retry_budget_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class LabConfig(BaseModel):
