@@ -26,6 +26,22 @@ make report            # -> reports/final_report.md
 make redis-keys        # KEYS "rl:cache:*" từ container Redis
 ```
 
+> **Windows không có sẵn `make`.** Các recipe trong `Makefile` là lệnh một dòng, chạy trực tiếp được
+> (đã kiểm chứng từng lệnh trên Windows với venv trên `PATH`):
+>
+> ```bash
+> pytest -q
+> ruff check src tests scripts
+> mypy src
+> python scripts/run_chaos.py --config configs/default.yaml --out reports/metrics.json
+> python scripts/run_chaos.py --config configs/redis.yaml  --out reports/metrics_redis.json --flush-cache
+> python scripts/redis_evidence.py --out reports/redis_evidence.txt
+> python scripts/generate_report.py --metrics reports/metrics.json --out reports/final_report.md
+> ```
+>
+> `make run-chaos` mất khoảng **2 phút** (7 kịch bản x 200 request, provider mô phỏng latency
+> 180-320 ms). Đó là hành vi mong muốn, không phải treo.
+
 ## Đã hiện thực
 
 | File | Nội dung |
